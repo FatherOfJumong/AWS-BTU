@@ -198,11 +198,31 @@ parser.add_argument("-days",
                     help="Days until objects are deleted (for lifecycle policy)",
                     default=120)
 
+parser.add_argument("-del",
+                    "--delete_file",
+                    help="Delete a specific file from the bucket.",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-key",
+                    "--file_key",
+                    type=str,
+                    help="File name (Key) to delete from the bucket.",
+                    default=None)
+
+
 def main():
   s3_client = init_client()
   args = parser.parse_args()
 
   if args.bucket_name:
+
+    if args.delete_file == "True" and args.bucket_name and args.file_key:
+      print(f"Attempting to delete file {args.file_key} from bucket {args.bucket_name}...")
+      delete_object_from_bucket(s3_client, args.bucket_name, args.file_key)
 
     if args.set_lifecycle_policy == "True":
         if set_lifecycle_policy(s3_client, args.bucket_name, args.days_until_deletion):

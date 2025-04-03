@@ -117,3 +117,13 @@ def upload_large_file(aws_s3_client, file_path, bucket_name, object_name=None):
         )
         print(f"Upload failed: {e}")
         return False
+
+
+def delete_object_from_bucket(aws_s3_client, bucket_name, file_key):
+    try:
+        aws_s3_client.delete_object(Bucket=bucket_name, Key=file_key)
+        print(f"Successfully deleted file {file_key} from bucket {bucket_name}")
+        return True
+    except Exception as e:
+        print(f"Error deleting file {file_key}: {e}")
+        return False
