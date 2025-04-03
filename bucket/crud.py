@@ -38,3 +38,16 @@ def bucket_exists(aws_s3_client, bucket_name) -> bool:
     except ClientError:
         # print(e)
         return False
+
+
+def check_bucket_versioning(aws_s3_client, bucket_name):
+    try:
+        response = aws_s3_client.get_bucket_versioning(Bucket=bucket_name)
+        version_status = response.get('Status', 'Not Enabled')
+        print(f"Versioning status for bucket '{bucket_name}': {version_status}")
+        return version_status
+    except ClientError as e:
+        print(f"Error checking versioning for bucket '{bucket_name}': {e}")
+        return None
+
+

@@ -127,3 +127,41 @@ def delete_object_from_bucket(aws_s3_client, bucket_name, file_key):
     except Exception as e:
         print(f"Error deleting file {file_key}: {e}")
         return False
+
+
+def get_file_versions(aws_s3_client, bucket_name, file_key):
+    try:
+        response = aws_s3_client.list_object_versions(Bucket=bucket_name, Prefix=file_key)
+        versions = response.get('Versions', [])
+        if versions:
+            print(f"Versions for file '{file_key}' in bucket '{bucket_name}':")
+            for version in versions:
+                print(f"Version ID: {version['VersionId']}, Last Modified: {version['LastModified']}")
+            print(f"Total versions: {len(versions)}")
+        else:
+            print(f"No versions found for file '{file_key}' in bucket '{bucket_name}'.")
+    except Exception as e:
+        print(f"Error listing versions for file '{file_key}': {e}")
+
+
+def upload_previous_version(aws_s3_client, bucket_name, file_key):
+    try:
+        response = aws_s3_client.list_object_versions(Bucket=bucket_name, Prefix=file_key)
+        versions = response.get('Versions', [])
+
+        if len(versions) < 2:
+            print(f"Not enough versions for file '{file_key}' to upload the previous version.")
+            return False
+
+        previous_version = versions[1]  # The second most recent version
+        version_id = previous_version['VersionId']
+
+        file_obj = aws_s3_client.get_object(Bucket=bucket_name, Key=file_key, VersionId=version_id)
+        file_content = file_obj['Body'].read()
+
+        aws_s3_client.put_object(Bucket=bucket_name, Key=file_key, Body=file_content)
+        print(f"Successfully uploaded the previous version of '{file_key}' as a new version.")
+        return True
+    except Exception as e:
+        print(f"Error uploading previous version for file '{file_key}': {e}")
+        return False

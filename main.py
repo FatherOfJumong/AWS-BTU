@@ -3,8 +3,8 @@
 import logging
 from botocore.exceptions import ClientError
 from auth import init_client
-from bucket.crud import list_buckets, create_bucket, delete_bucket, bucket_exists
-from bucket.policy import read_bucket_policy, assign_policy, set_lifecycle_policy, get_lifecycle_policy
+from bucket.crud import *
+from bucket.policy import *
 from object.crud import *
 from bucket.encryption import set_bucket_encryption, read_bucket_encryption
 import argparse
@@ -207,10 +207,37 @@ parser.add_argument("-del",
                     const="True",
                     default="False")
 
+parser.add_argument("-cv",
+                    "--check_versioning",
+                    help="Check if versioning is enabled on the bucket.",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-cfv",
+                    "--check_file_versions",
+                    help="Show version count and creation dates of a file.",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-upv",
+                    "--upload_previous_version",
+                    help="Upload the last previous version of a file as a new version.",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
 parser.add_argument("-key",
                     "--file_key",
                     type=str,
-                    help="File name (Key) to delete from the bucket.",
+                    help="File name",
                     default=None)
 
 
@@ -219,6 +246,15 @@ def main():
   args = parser.parse_args()
 
   if args.bucket_name:
+
+    if args.check_versioning == "True":
+        check_bucket_versioning(s3_client, args.bucket_name)
+
+    if args.check_file_versions == "True" and args.file_key:
+        get_file_versions(s3_client, args.bucket_name, args.file_key)
+
+    if args.upload_previous_version == "True" and args.file_key:
+        upload_previous_version(s3_client, args.bucket_name, args.file_key)
 
     if args.delete_file == "True" and args.bucket_name and args.file_key:
       print(f"Attempting to delete file {args.file_key} from bucket {args.bucket_name}...")
