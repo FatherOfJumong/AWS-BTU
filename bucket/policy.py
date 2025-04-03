@@ -1,5 +1,5 @@
-import json
 
+import json
 
 def public_read_policy(bucket_name):
   policy = {
@@ -60,3 +60,44 @@ def read_bucket_policy(aws_s3_client, bucket_name):
   if status_code == 200:
     return policy["Policy"]
   return False
+
+
+def set_lifecycle_policy(aws_s3_client, bucket_name, days=120):
+    try:
+        lifecycle_config = {
+            'Rules': [
+                {
+                    'Expiration': {
+                        'Days': days,
+                    },
+                    'ID': f'Delete objects after {days} days',
+                    'Status': 'Enabled',
+                    'Prefix': '',  
+                },
+            ]
+        }
+        
+        response = aws_s3_client.put_bucket_lifecycle_configuration(
+            Bucket=bucket_name,
+            LifecycleConfiguration=lifecycle_config
+        )
+        
+        status_code = response['ResponseMetadata']['HTTPStatusCode']
+        if status_code == 200:
+            return True
+        return False
+    except Exception as e:
+        print(f"Error setting lifecycle policy: {e}")
+        return False
+
+def get_lifecycle_policy(aws_s3_client, bucket_name):
+
+    try:
+        response = aws_s3_client.get_bucket_lifecycle_configuration(Bucket=bucket_name)
+        return response
+    except Exception as e:
+        print(f"Error getting lifecycle policy: {e}")
+        return False
+
+
+

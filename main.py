@@ -1,9 +1,11 @@
+"main.py"
+
 import logging
 from botocore.exceptions import ClientError
 from auth import init_client
 from bucket.crud import list_buckets, create_bucket, delete_bucket, bucket_exists
-from bucket.policy import read_bucket_policy, assign_policy
-from object.crud import download_file_and_upload_to_s3, get_objects
+from bucket.policy import read_bucket_policy, assign_policy, set_lifecycle_policy, get_lifecycle_policy
+from object.crud import *
 from bucket.encryption import set_bucket_encryption, read_bucket_encryption
 import argparse
 
@@ -160,20 +162,72 @@ parser.add_argument("-rben",
                     const="True",
                     default="False")
 
-parser.add_argument("-uf",
-                    "--upload_file",
+parser.add_argument("-sf",
+                    "--small_file",
                     type=str,
-                    help="Upload file",
+                    help="Path to small file for upload",
+                    default=None)
+
+parser.add_argument("-lf",
+                    "--large_file",
+                    type=str,
+                    help="Path to large file for multipart upload",
+                    default=None)
+
+parser.add_argument("-slp",
+                    "--set_lifecycle_policy",
+                    help="Set lifecycle policy to delete objects after 120 days",
+                    choices=["False", "True"],
+                    type=str,
                     nargs="?",
                     const="True",
                     default="False")
 
+parser.add_argument("-glp",
+                    "--get_lifecycle_policy",
+                    help="Get current lifecycle policy",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-days",
+                    "--days_until_deletion",
+                    type=int,
+                    help="Days until objects are deleted (for lifecycle policy)",
+                    default=120)
 
 def main():
   s3_client = init_client()
   args = parser.parse_args()
 
   if args.bucket_name:
+
+    if args.set_lifecycle_policy == "True":
+        if set_lifecycle_policy(s3_client, args.bucket_name, args.days_until_deletion):
+            print(f"Successfully set lifecycle policy to delete objects after {args.days_until_deletion} days")
+
+    if args.get_lifecycle_policy == "True":
+        lifecycle_policy = get_lifecycle_policy(s3_client, args.bucket_name)
+        if lifecycle_policy:
+            print("Current lifecycle policy:")
+            print(lifecycle_policy)
+    
+    if args.small_file:
+        if not args.bucket_name:
+            parser.error("Please provide a bucket name with --bucket_name")
+        
+        print(f"Uploading {args.small_file} to bucket {args.bucket_name}...")
+        if upload_file(s3_client, args.small_file, args.bucket_name):
+            print(f"Successfully uploaded {args.small_file} to {args.bucket_name}")
+        else:
+            print(f"Failed to upload {args.small_file}")
+    
+    if args.large_file:
+        if upload_large_file(s3_client, args.large_file, args.bucket_name):
+            print(f"Successfully uploaded large file {args.large_file} to {args.bucket_name}")
+
     if args.create_bucket == "True":
       if not args.region:
         parser.error("Please provide region for bucket --region REGION_NAME")
@@ -225,3 +279,5 @@ if __name__ == "__main__":
     main()
   except ClientError as e:
     logging.error(e)
+
+
