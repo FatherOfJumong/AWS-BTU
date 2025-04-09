@@ -240,12 +240,34 @@ parser.add_argument("-key",
                     help="File name",
                     default=None)
 
+parser.add_argument("-uft",
+                    "--upload_file_by_type",
+                    help="Upload file to appropriate folder based on its type",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-fp",
+                    "--file_path",
+                    type=str,
+                    help="Path to file for type-based upload",
+                    default=None)
+
 
 def main():
   s3_client = init_client()
   args = parser.parse_args()
 
   if args.bucket_name:
+    if args.upload_file_by_type == "True" and args.file_path: 
+        print(f"Uploading {args.file_path} to bucket {args.bucket_name} based on file type...")
+        from object.crud import upload_file_by_type
+        if upload_file_by_type(s3_client, args.file_path, args.bucket_name):
+            print(f"Successfully uploaded {args.file_path} to {args.bucket_name} in appropriate folder")
+        else:
+            print(f"Failed to upload {args.file_path}")
 
     if args.check_versioning == "True":
         check_bucket_versioning(s3_client, args.bucket_name)

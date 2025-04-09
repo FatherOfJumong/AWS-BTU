@@ -165,3 +165,41 @@ def upload_previous_version(aws_s3_client, bucket_name, file_key):
     except Exception as e:
         print(f"Error uploading previous version for file '{file_key}': {e}")
         return False
+
+
+
+def upload_file_by_type(aws_s3_client, file_path, bucket_name):
+
+    import os
+    import magic
+    
+    try:
+
+        file_name = os.path.basename(file_path)
+        _, file_extension = os.path.splitext(file_name)
+
+        folder_name = file_extension[1:].lower() if file_extension else "no_extension"
+
+        mime = magic.Magic(mime=True)
+        file_type = mime.from_file(file_path)
+        
+        s3_key = f"{folder_name}/{file_name}"
+        
+        print(f"File extension: {file_extension}")
+        print(f"Uploading to folder: {folder_name}")
+        print(f"Detected MIME type: {file_type}")
+        print(f"Full S3 path: {bucket_name}/{s3_key}")
+
+        aws_s3_client.upload_file(
+            file_path, 
+            bucket_name, 
+            s3_key,
+            ExtraArgs={'ContentType': file_type}
+        )
+        
+        print(f"Successfully uploaded {file_path} to {bucket_name}/{s3_key}")
+        return True
+    except Exception as e:
+        print(f"Error uploading file by extension: {e}")
+        return False
+    
