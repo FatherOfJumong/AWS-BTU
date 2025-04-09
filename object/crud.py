@@ -203,3 +203,82 @@ def upload_file_by_type(aws_s3_client, file_path, bucket_name):
         print(f"Error uploading file by extension: {e}")
         return False
     
+
+
+def check_and_delete_old_versions(aws_s3_client, bucket_name, file_key=None, months=6):
+    import datetime
+
+    current_date = datetime.datetime.now(datetime.timezone.utc)
+    cutoff_date = current_date - datetime.timedelta(days=30 * months)
+    
+    print(f"Checking for versions older than {cutoff_date.strftime('%Y-%m-%d')}")
+    
+    deleted_count = 0
+    
+    try:
+        if file_key:
+            response = aws_s3_client.list_object_versions(Bucket=bucket_name, Prefix=file_key)
+            print(f"Checking versions for file: {file_key}")
+            deleted_count += process_versions(aws_s3_client, bucket_name, response, cutoff_date)
+        else:
+            response = aws_s3_client.list_object_versions(Bucket=bucket_name)
+            print(f"Checking versions for all files in bucket: {bucket_name}")
+            deleted_count += process_versions(aws_s3_client, bucket_name, response, cutoff_date)
+            
+            while response.get('IsTruncated', False):
+                kwargs = {
+                    'Bucket': bucket_name,
+                    'KeyMarker': response.get('NextKeyMarker'),
+                    'VersionIdMarker': response.get('NextVersionIdMarker')
+                }
+                response = aws_s3_client.list_object_versions(**kwargs)
+                deleted_count += process_versions(aws_s3_client, bucket_name, response, cutoff_date)
+                
+        print(f"Total versions deleted: {deleted_count}")
+        return deleted_count
+    
+    except Exception as e:
+        print(f"Error checking/deleting versions: {e}")
+        return deleted_count
+
+def process_versions(aws_s3_client, bucket_name, response, cutoff_date):
+
+    deleted_count = 0
+
+    if 'Versions' in response:
+        for version in response['Versions']:
+            key = version['Key']
+            version_id = version['VersionId']
+            last_modified = version['LastModified']
+ 
+            if last_modified < cutoff_date:
+                try:
+                    print(f"Deleting old version of {key}, version: {version_id}, modified: {last_modified}")
+                    aws_s3_client.delete_object(
+                        Bucket=bucket_name,
+                        Key=key,
+                        VersionId=version_id
+                    )
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting version {version_id} of {key}: {e}")
+
+    if 'DeleteMarkers' in response:
+        for marker in response['DeleteMarkers']:
+            key = marker['Key']
+            version_id = marker['VersionId']
+            last_modified = marker['LastModified']
+
+            if last_modified < cutoff_date:
+                try:
+                    print(f"Deleting old delete marker of {key}, version: {version_id}, modified: {last_modified}")
+                    aws_s3_client.delete_object(
+                        Bucket=bucket_name,
+                        Key=key,
+                        VersionId=version_id
+                    )
+                    deleted_count += 1
+                except Exception as e:
+                    print(f"Error deleting delete marker {version_id} of {key}: {e}")
+    
+    return deleted_count

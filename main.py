@@ -255,12 +255,50 @@ parser.add_argument("-fp",
                     help="Path to file for type-based upload",
                     default=None)
 
+parser.add_argument("-dov",
+                    "--delete_old_versions",
+                    help="Check and delete old versions of files in bucket",
+                    choices=["False", "True"],
+                    type=str,
+                    nargs="?",
+                    const="True",
+                    default="False")
+
+parser.add_argument("-m",
+                    "--months",
+                    type=int,
+                    help="Number of months threshold for version deletion (default: 6)",
+                    default=6)
+
 
 def main():
   s3_client = init_client()
   args = parser.parse_args()
 
   if args.bucket_name:
+
+    if args.delete_old_versions == "True":
+        if not args.bucket_name:
+            parser.error("Please provide a bucket name with --bucket_name")
+            
+        print(f"Checking for old versions in bucket {args.bucket_name}...")
+
+        file_key = args.file_key if hasattr(args, 'file_key') else None
+        
+        if file_key:
+            print(f"Looking at specific file: {file_key}")
+    
+        deleted_count = check_and_delete_old_versions(
+            s3_client, 
+            args.bucket_name, 
+            file_key, 
+            args.months
+        )
+        if deleted_count > 0:
+            print(f"Successfully deleted {deleted_count} old versions")
+        else:
+            print("No old versions found to delete")
+
     if args.upload_file_by_type == "True" and args.file_path: 
         print(f"Uploading {args.file_path} to bucket {args.bucket_name} based on file type...")
         from object.crud import upload_file_by_type
