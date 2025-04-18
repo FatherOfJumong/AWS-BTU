@@ -101,3 +101,26 @@ def get_lifecycle_policy(aws_s3_client, bucket_name):
 
 
 
+def set_website_policy(aws_s3_client, bucket_name):
+    import json
+    
+    website_policy = {
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Sid': 'PublicReadGetObject',
+            'Effect': 'Allow',
+            'Principal': '*',
+            'Action': ['s3:GetObject'],
+            'Resource': f'arn:aws:s3:::{bucket_name}/*'
+        }]
+    }
+    
+    try:
+        aws_s3_client.put_bucket_policy(
+            Bucket=bucket_name,
+            Policy=json.dumps(website_policy)
+        )
+        return True
+    except Exception as e:
+        print(f"Error setting website policy: {e}")
+        return False

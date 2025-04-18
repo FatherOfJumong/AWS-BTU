@@ -7,7 +7,10 @@ from bucket.crud import *
 from bucket.policy import *
 from object.crud import *
 from bucket.encryption import set_bucket_encryption, read_bucket_encryption
+from bucket.website import *
 import argparse
+import tempfile
+import os
 
 parser = argparse.ArgumentParser(
   description="CLI program that helps with S3 buckets.",
@@ -271,11 +274,73 @@ parser.add_argument("-m",
                     default=6)
 
 
+parser.add_argument("host",
+                   help="Host a static website on S3",
+                   nargs="?")  # Make it optional so other commands still work
+
+parser.add_argument("--source",
+                   type=str,
+                   help="Source for website files (GitHub URL or local folder)",
+                   default=None)
+
+
+def host_static_website(s3_client, args):
+    if not args.bucket_name:
+        parser.error("Please provide a bucket name with --bucket_name")
+    
+    if not args.source:
+        parser.error("Please provide a source with --source")
+    
+    region = args.region if hasattr(args, 'region') and args.region else "us-east-1"
+
+    if not bucket_exists(s3_client, args.bucket_name):
+        print(f"Creating bucket {args.bucket_name}...")
+        if not create_bucket(s3_client, args.bucket_name, region):
+            print("Failed to create bucket")
+            return False
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        source_dir = temp_dir
+
+        if args.source.startswith('http') and 'github.com' in args.source:
+            print(f"Cloning GitHub repository {args.source}...")
+            if not clone_github_repo(args.source, temp_dir):
+                print("Failed to clone repository")
+                return False
+        elif os.path.isdir(args.source):
+            print(f"Using local directory {args.source}")
+            source_dir = args.source
+        else:
+            print(f"Invalid source: {args.source}")
+            return False
+        print(f"Uploading files to bucket {args.bucket_name}...")
+        if not upload_folder_to_s3(s3_client, source_dir, args.bucket_name):
+            print("Failed to upload files")
+            return False
+
+    print("Configuring website hosting...")
+    if not configure_website(s3_client, args.bucket_name):
+        print("Failed to configure website hosting")
+        return False
+
+    print("Setting public read access...")
+    if not set_website_policy(s3_client, args.bucket_name):
+        print("Failed to set bucket policy")
+        return False
+    
+    website_url = get_website_url(args.bucket_name, region)
+    print(f"Website at: {website_url}")
+    
+    return website_url
+
 def main():
   s3_client = init_client()
   args = parser.parse_args()
 
   if args.bucket_name:
+
+    if args.host and args.source:
+       host_static_website(s3_client, args)
 
     if args.delete_old_versions == "True":
         if not args.bucket_name:

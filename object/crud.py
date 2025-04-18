@@ -25,8 +25,6 @@ def download_file_and_upload_to_s3(aws_s3_client,
   if keep_local:
     with open(file_name, mode='wb') as jpg_file:
       jpg_file.write(content)
-
-  # public URL
   return "https://s3-{0}.amazonaws.com/{1}/{2}".format('us-west-2',
                                                        bucket_name, file_name)
 
@@ -153,7 +151,7 @@ def upload_previous_version(aws_s3_client, bucket_name, file_key):
             print(f"Not enough versions for file '{file_key}' to upload the previous version.")
             return False
 
-        previous_version = versions[1]  # The second most recent version
+        previous_version = versions[1]  
         version_id = previous_version['VersionId']
 
         file_obj = aws_s3_client.get_object(Bucket=bucket_name, Key=file_key, VersionId=version_id)
@@ -282,3 +280,105 @@ def process_versions(aws_s3_client, bucket_name, response, cutoff_date):
                     print(f"Error deleting delete marker {version_id} of {key}: {e}")
     
     return deleted_count
+
+
+def upload_folder_to_s3(aws_s3_client, folder_path, bucket_name):
+    import os
+    import mimetypes
+    
+    uploaded_files = 0
+    errors = 0
+    
+    try:
+        for root, _, files in os.walk(folder_path):
+            for file in files:
+                local_path = os.path.join(root, file)
+                relative_path = os.path.relpath(local_path, folder_path)
+
+                if file.startswith('.'):
+                    continue
+
+                content_type = mimetypes.guess_type(file)[0]
+                if content_type is None:
+                    content_type = 'application/octet-stream'
+                try:
+                    aws_s3_client.upload_file(
+                        Filename=local_path,
+                        Bucket=bucket_name,
+                        Key=relative_path,
+                        ExtraArgs={'ContentType': content_type}
+                    )
+                    print(f"Uploaded {relative_path}")
+                    uploaded_files += 1
+                except Exception as e:
+                    print(f"Error uploading {relative_path}: {e}")
+                    errors += 1
+        
+        print(f"Upload summary: {uploaded_files} files uploaded, {errors} errors")
+        return uploaded_files > 0
+    except Exception as e:
+        print(f"Error uploading folder: {e}")
+        return False
+
+def clone_github_repo(repo_url, target_dir):
+    import os
+    import shutil
+    import tempfile
+    import requests
+    import zipfile
+    from urllib.parse import urlparse
+    
+    parsed_url = urlparse(repo_url)
+    path_parts = parsed_url.path.strip('/').split('/')
+    
+    if len(path_parts) < 2:
+        print("Invalid GitHub URL")
+        return False
+    
+    owner, repo = path_parts[0], path_parts[1]
+    branch = 'main'  
+    
+    try:
+        zip_url = f"https://github.com/{owner}/{repo}/archive/refs/heads/{branch}.zip"
+        print(f"Downloading {zip_url}...")
+        
+        response = requests.get(zip_url, stream=True)
+        if response.status_code != 200:
+            print(f"Failed to download repository: HTTP {response.status_code}")
+            return False
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    tmp_file.write(chunk)
+            tmp_path = tmp_file.name
+        
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            with zipfile.ZipFile(tmp_path, 'r') as zip_ref:
+                zip_ref.extractall(tmp_dir)
+            
+            extracted_dirs = os.listdir(tmp_dir)
+            if not extracted_dirs:
+                print("Empty archive downloaded")
+                return False
+            
+            extracted_dir = os.path.join(tmp_dir, extracted_dirs[0])
+            
+            os.makedirs(target_dir, exist_ok=True)
+            
+            for item in os.listdir(extracted_dir):
+                s = os.path.join(extracted_dir, item)
+                d = os.path.join(target_dir, item)
+                if os.path.isdir(s):
+                    shutil.copytree(s, d, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(s, d)
+        
+        os.unlink(tmp_path)
+        
+        print(f"Repository cloned successfully to {target_dir}")
+        return True
+    except Exception as e:
+        print(f"Error cloning repository: {e}")
+        return False
+    
