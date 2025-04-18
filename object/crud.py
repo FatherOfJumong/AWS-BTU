@@ -4,6 +4,10 @@ from urllib.request import urlopen
 import io
 from hashlib import md5
 from time import localtime
+import os
+import uuid 
+import json
+
 
 
 def get_objects(aws_s3_client, bucket_name) -> str:
@@ -382,3 +386,34 @@ def clone_github_repo(repo_url, target_dir):
         print(f"Error cloning repository: {e}")
         return False
     
+
+
+def save_quote_to_s3(aws_s3_client, bucket_name, quote_data):
+
+    if not quote_data or not isinstance(quote_data, dict):
+        print("Error: Invalid quote data provided for saving.")
+        return False
+
+    try:
+        author_slug = quote_data.get('author', {}).get('slug', 'unknown-author')
+        quote_id = quote_data.get('id', str(uuid.uuid4()))
+        file_name = f"quotes/{author_slug}_{quote_id}.json" 
+
+        json_string = json.dumps(quote_data, indent=4) 
+
+        json_bytes = io.BytesIO(json_string.encode('utf-8'))
+
+        print(f"Saving quote to s3://{bucket_name}/{file_name}...")
+
+        aws_s3_client.upload_fileobj(
+            Fileobj=json_bytes,
+            Bucket=bucket_name,
+            Key=file_name,
+            ExtraArgs={'ContentType': 'application/json'}
+        )
+        print("Quote saved successfully to S3.")
+        return True
+
+    except Exception as e:
+        print(f"Error saving quote to S3: {e}")
+        return False

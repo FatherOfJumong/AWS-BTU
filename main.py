@@ -8,9 +8,11 @@ from bucket.policy import *
 from object.crud import *
 from bucket.encryption import set_bucket_encryption, read_bucket_encryption
 from bucket.website import *
+from utils import fetch_quote
 import argparse
 import tempfile
 import os
+
 
 parser = argparse.ArgumentParser(
   description="CLI program that helps with S3 buckets.",
@@ -282,6 +284,21 @@ parser.add_argument("--source",
                    type=str,
                    help="Source for website files (GitHub URL or local folder)",
                    default=None)
+parser.add_argument(
+    "--inspire",
+    type=str,
+    nargs='?',
+    const=True,
+    default=None, 
+    help="Fetch a random quote. Optionally provide an author name to filter quotes."
+)
+
+parser.add_argument(
+    "-save",
+    "--save_quote",
+    action="store_true",
+    help="Save the fetched quote to the specified S3 bucket as a JSON file. Requires --bucket_name."
+)
 
 
 def host_static_website(s3_client, args):
@@ -337,6 +354,19 @@ def main():
   s3_client = init_client()
   args = parser.parse_args()
 
+  if args.inspire:
+     author_name = args.inspire if isinstance(args.inspire, str) else None
+     fetched_quote = fetch_quote(author=author_name)
+     if fetched_quote:
+        print("-" * 30)
+        print(f"\"{fetched_quote.get('content', 'N/A')}\"")
+        print(f"-- {fetched_quote.get('author', {}).get('name', 'Unknown Author')}")
+        print("-" * 30)
+        if args.save_quote:
+            if args.bucket_name:
+                save_quote_to_s3(s3_client, args.bucket_name, fetched_quote)
+            else:
+                print("Error: --bucket_name is required when using -save/--save_quote.")
   if args.bucket_name:
 
     if args.host and args.source:
