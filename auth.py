@@ -1,16 +1,15 @@
 import boto3
 from os import getenv
 
-
 import boto3
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-def init_client():
+def init_client(service='s3'):
     client = boto3.client(
-        "s3",
+        service,
         aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),  # updated to match .env variable names
         aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
         aws_session_token=os.getenv("AWS_SESSION_TOKEN"),
