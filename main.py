@@ -14,6 +14,8 @@ import argparse
 import tempfile
 import os
 
+from rds.operations import *
+
 
 parser = argparse.ArgumentParser(
   description="CLI program that helps with S3 buckets.",
@@ -300,9 +302,46 @@ parser.add_argument(
 )
 
 
+
 parser.add_argument("--vpc_id", type=str, help="VPC ID for EC2 instance creation", default=None)
 parser.add_argument("--subnet_id", type=str, help="Subnet ID for EC2 instance creation", default=None)
 parser.add_argument("--launch_ec2", help="Flag to launch EC2 instance", choices=["False", "True"], type=str, nargs="?", const="True", default="False")
+
+
+parser.add_argument("--create_rds", 
+                   help="Create RDS MySQL instance", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
+parser.add_argument("--db_instance_id", 
+                   type=str, 
+                   help="RDS instance identifier", 
+                   default=None)
+
+parser.add_argument("--security_group_id", 
+                   type=str, 
+                   help="Security Group ID for RDS", 
+                   default=None)
+
+parser.add_argument("--delete_rds", 
+                   help="Delete RDS instance", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
+parser.add_argument("--list_rds", 
+                   help="List RDS instances", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
 
 
 def host_static_website(s3_client, args):
@@ -357,7 +396,24 @@ def host_static_website(s3_client, args):
 def main():
     s3_client = init_client(service='s3')
     ec2_client = init_client(service='ec2')
+    rds_client = init_client(service='rds')
     args = parser.parse_args()
+
+    if args.create_rds == "True":
+        if not args.db_instance_id or not args.security_group_id:
+            parser.error("Please provide both --db_instance_id and --security_group_id for RDS creation")
+        region = args.region if args.region else "us-east-1"
+        result = create_rds_instance(rds_client, args.db_instance_id, args.security_group_id, region)
+        if result:
+            print("Connect using these details in your database tool (DBeaver, DataGrip, etc.)")
+
+    if args.delete_rds == "True":
+        if not args.db_instance_id:
+            parser.error("Please provide --db_instance_id for RDS deletion")
+        delete_rds_instance(rds_client, args.db_instance_id)
+
+    if args.list_rds == "True":
+        list_rds_instances(rds_client)
 
     if args.inspire:
         author_name = args.inspire if isinstance(args.inspire, str) else None
