@@ -1,6 +1,6 @@
-import boto3
+
 from botocore.exceptions import ClientError
-import time
+
 
 def create_rds_instance(rds_client, db_instance_identifier, security_group_id, region):
     try:
@@ -89,3 +89,49 @@ def list_rds_instances(rds_client):
     except ClientError as e:
         print(f"Error listing RDS instances: {e}")
         return []
+
+def increase_rds_storage(rds_client, db_instance_identifier):
+    try:
+        response = rds_client.describe_db_instances(DBInstanceIdentifier=db_instance_identifier)
+        current_storage = response['DBInstances'][0]['AllocatedStorage']
+        new_storage = int(current_storage * 1.25)
+        
+        print(f"Current storage: {current_storage} GB")
+        print(f"New storage: {new_storage} GB")
+        
+        rds_client.modify_db_instance(
+            DBInstanceIdentifier=db_instance_identifier,
+            AllocatedStorage=new_storage,
+            ApplyImmediately=True
+        )
+        
+        print(f"Storage increase initiated for {db_instance_identifier}")
+        return True
+    except ClientError as e:
+        print(f"Error increasing storage: {e}")
+        return False
+
+def create_rds_snapshot(rds_client, db_instance_identifier, snapshot_identifier):
+    try:
+        response = rds_client.create_db_snapshot(
+            DBSnapshotIdentifier=snapshot_identifier,
+            DBInstanceIdentifier=db_instance_identifier
+        )
+        
+        print(f"Manual snapshot creation initiated: {snapshot_identifier}")
+        
+        waiter = rds_client.get_waiter('db_snapshot_completed')
+        print("Waiting for snapshot to complete...")
+        waiter.wait(
+            DBSnapshotIdentifier=snapshot_identifier,
+            WaiterConfig={
+                'Delay': 30,
+                'MaxAttempts': 60
+            }
+        )
+        
+        print(f"Snapshot {snapshot_identifier} created successfully!")
+        return True
+    except ClientError as e:
+        print(f"Error creating snapshot: {e}")
+        return False

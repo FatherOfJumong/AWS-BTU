@@ -15,6 +15,7 @@ import tempfile
 import os
 
 from rds.operations import *
+from dynamodb.operations import *
 
 
 parser = argparse.ArgumentParser(
@@ -344,6 +345,35 @@ parser.add_argument("--list_rds",
 
 
 
+parser.add_argument("--increase_storage", 
+                   help="Increase RDS storage by 25%", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
+parser.add_argument("--list_dynamodb", 
+                   help="List all DynamoDB tables", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
+parser.add_argument("--create_snapshot", 
+                   help="Create manual RDS snapshot", 
+                   choices=["False", "True"], 
+                   type=str, 
+                   nargs="?", 
+                   const="True", 
+                   default="False")
+
+parser.add_argument("--snapshot_id", 
+                   type=str, 
+                   help="Snapshot identifier", 
+                   default=None)
+
 def host_static_website(s3_client, args):
     if not args.bucket_name:
         parser.error("Please provide a bucket name with --bucket_name")
@@ -397,6 +427,7 @@ def main():
     s3_client = init_client(service='s3')
     ec2_client = init_client(service='ec2')
     rds_client = init_client(service='rds')
+    dynamodb_client = init_client(service='dynamodb')
     args = parser.parse_args()
 
     if args.create_rds == "True":
@@ -415,6 +446,18 @@ def main():
     if args.list_rds == "True":
         list_rds_instances(rds_client)
 
+    if args.increase_storage == "True":
+        if not args.db_instance_id:
+            parser.error("Please provide --db_instance_id for storage increase")
+        increase_rds_storage(rds_client, args.db_instance_id)
+
+    if args.list_dynamodb == "True":
+        list_dynamodb_tables(dynamodb_client)
+
+    if args.create_snapshot == "True":
+        if not args.db_instance_id or not args.snapshot_id:
+            parser.error("Please provide both --db_instance_id and --snapshot_id for snapshot creation")
+        create_rds_snapshot(rds_client, args.db_instance_id, args.snapshot_id)
     if args.inspire:
         author_name = args.inspire if isinstance(args.inspire, str) else None
         fetched_quote = fetch_quote(author=author_name)
